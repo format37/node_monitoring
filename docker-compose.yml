@@ -13,7 +13,7 @@ services:
         max-file: "3"
     environment:
       - TZ=Europe/Moscow
-      - LINK=https://beaconcha.in/api/v1/validator/stats/YOURNODEID
+      - LINK=https://beaconcha.in/api/v1/validator/YOUR_NODE_ID
       - BOT_TOKEN=TELEGRAMBOTTOKEN
       - CHAT_ID=TELEGRAMCHATID
       - NORMAL_SLEEP=600
