@@ -15,7 +15,7 @@ def check_availability(link):
         else:
             return False, r.json()['data'][0]['status']
     except Exception as e:
-        logging.info(str(r.json()))
+        logging.info(str(type(r.json()['data'])))
         return False, str(e)+" r.json()['data'][0]['status'] of JSON: "+str(r.json())
 
 
