@@ -11,12 +11,12 @@ def check_availability(link):
     try:
         r = requests.get(link)
         if r.status_code == 200 and r.json()['data']['status'] == 'active_online':
-            return True, r.json()['data']['status']
+            return True, r.json()['data'][0]['status']
         else:
-            return False, r.json()['data']['status']
+            return False, r.json()['data'][0]['status']
     except Exception as e:
         logging.info(str(r.json()))
-        return False, str(e)
+        return False, str(e)+" r.json()['data'][0]['status'] of JSON: "+str(r.json())
 
 
 def main():
