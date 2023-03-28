@@ -10,13 +10,19 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 def check_availability(link):
     try:
         r = requests.get(link)
-        if r.status_code == 200 and r.json()['data'][0]['status'] == 'active_online':
-            return True, r.json()['data'][0]['status']
+        status_ok = False
+        if r.status_code == 200:
+            if type(r.json()['data']) == type([]):
+                status = r.json()['data'][0]['status']
+            else:
+                status = r.json()['data']['status']            
+            if status == 'active_online':
+                return True, status
         else:
-            return False, r.json()['data'][0]['status']
+            return False, 'check status: '+str(r.json())
     except Exception as e:
-        logging.info(str("type(r.json()['data'][0])): "+str(type(r.json()['data'][0]))))
-        return False, str(e)+" while trying to call r.json()['data'][0]['status'] from JSON: "+str(r.json())
+        logging.info(str("Unable to read r: "+str(r)))
+        return False, str(e)+' Please, check status: '+str(r.json())
 
 
 def main():
