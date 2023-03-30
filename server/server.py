@@ -35,23 +35,25 @@ def main():
     logging.info('Starting the Node monitoring server')
     requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Node monitoring started'.format(telegram_token, chat_id))
     while True:
-        availability, r = check_availability(link)
-        if availability:
-            if not test_ok:
-                requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Node is up'.format(telegram_token, chat_id))
-                test_ok = True
-            sleep(normal_sleep)
-        else:
-            logging.info('Server is down:')
-            try:
-                logging.info(r)
-            except Exception as e:
-                logging.info(e)
-                r = str(e)
-
+        try:
+            availability, r = check_availability(link)
+            if availability:
+                if not test_ok:
+                    requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Node is up'.format(telegram_token, chat_id))
+                    test_ok = True
+                sleep(normal_sleep)
+                continue
+            else:
+                logging.info('Server is down:')
+                logging.info(str(r))
+                test_ok = False
+        except Exception as e:
+            logging.info('Exception:')
+            logging.info(e)
+            r = str(e)
             test_ok = False
-            
-            requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Server is down: {}. Sleeping {} seconds'.format(telegram_token, chat_id, r, fail_sleep))
+        if test_ok == False:
+            requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Server is down: {}. Sleeping {} seconds'.format(telegram_token, chat_id, str(r), fail_sleep))
             sleep(fail_sleep)
 
 
