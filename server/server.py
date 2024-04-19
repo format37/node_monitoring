@@ -8,6 +8,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 
 
 def check_availability(link):
+    r = None
     try:
         r = requests.get(link)
         status_ok = False
@@ -35,6 +36,7 @@ def main():
     logging.info('Starting the Node monitoring server')
     requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Node monitoring started'.format(telegram_token, chat_id))
     while True:
+        r = None
         try:
             availability, r = check_availability(link)
             if availability:
