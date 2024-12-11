@@ -2,61 +2,114 @@ import requests
 from time import sleep
 import logging
 import os
+from typing import Tuple
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def check_availability(link):
-    r = None
+def check_validator_status(link: str) -> Tuple[bool, str]:
+    """
+    Check validator status and return whether it requires attention.
+    
+    Args:
+        link: API endpoint URL
+        
+    Returns:
+        Tuple of (is_healthy, status_message)
+    """
     try:
         r = requests.get(link)
-        status_ok = False
-        if r.status_code == 200:
-            if type(r.json()['data']) == type([]):
-                status = r.json()['data'][0]['status']
-            else:
-                status = r.json()['data']['status']            
-            if status == 'active_online':
-                return True, status
+        if r.status_code != 200:
+            return False, f'HTTP error {r.status_code}: {r.text}'
+            
+        data = r.json()
+        if data['status'] != 'OK':
+            return False, f'API error: {data["status"]}'
+            
+        validator_data = data['data']
+        if isinstance(validator_data, list):
+            status = validator_data[0]['status']
         else:
-            return False, 'check status: '+str(r.json())
+            status = validator_data['status']
+            
+        # Define problematic statuses
+        problematic_statuses = {
+            'active_offline': 'Validator is active but offline',
+            'slashed': 'Validator has been slashed',
+            'exited_slashed': 'Validator has exited due to slashing',
+            'exited': 'Validator has exited',
+            'pending': 'Validator is pending activation'
+        }
+        
+        if status in problematic_statuses:
+            return False, f'Validator issue: {problematic_statuses[status]}'
+        elif status != 'active_online':
+            return False, f'Unknown validator status: {status}'
+            
+        return True, 'Validator is healthy and online'
+        
+    except requests.exceptions.RequestException as e:
+        return False, f'Network error: {str(e)}'
     except Exception as e:
-        logging.info(str("Unable to read r: "+str(r)))
-        return False, str(e)+' Please, check status: '+str(r.json())
+        return False, f'Unexpected error: {str(e)}'
+
+
+def send_telegram_message(token: str, chat_id: str, message: str) -> None:
+    """Send message via Telegram bot."""
+    try:
+        requests.get(
+            f'https://api.telegram.org/bot{token}/sendMessage',
+            params={'chat_id': chat_id, 'text': message},
+            timeout=10
+        )
+    except Exception as e:
+        logging.error(f'Failed to send Telegram message: {e}')
 
 
 def main():
-    test_ok = False
-    telegram_token = os.environ.get('BOT_TOKEN', '')
-    chat_id = os.environ.get('CHAT_ID', '')
-    link = os.environ.get('LINK', '')
-    normal_sleep = int(os.environ.get('NORMAL_SLEEP', 600))
-    fail_sleep = int(os.environ.get('FAIL_SLEEP', 3600))
-    logging.info('Starting the Node monitoring server')
-    requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Node monitoring started'.format(telegram_token, chat_id))
+    # Load environment variables with defaults
+    config = {
+        'telegram_token': os.environ.get('BOT_TOKEN', ''),
+        'chat_id': os.environ.get('CHAT_ID', ''),
+        'link': os.environ.get('LINK', ''),
+        'normal_sleep': int(os.environ.get('NORMAL_SLEEP', 600)),
+        'fail_sleep': int(os.environ.get('FAIL_SLEEP', 3600))
+    }
+    
+    if not all([config['telegram_token'], config['chat_id'], config['link']]):
+        logging.error('Missing required environment variables')
+        return
+        
+    logging.info('Starting the Validator monitoring service')
+    send_telegram_message(
+        config['telegram_token'],
+        config['chat_id'],
+        'Validator monitoring started'
+    )
+    
+    previous_status = None
+    
     while True:
-        r = None
         try:
-            availability, r = check_availability(link)
-            if availability:
-                if not test_ok:
-                    requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Node is up'.format(telegram_token, chat_id))
-                    test_ok = True
-                sleep(normal_sleep)
-                continue
-            else:
-                logging.info('Server is down:')
-                logging.info(str(r))
-                test_ok = False
+            is_healthy, status_message = check_validator_status(config['link'])
+            
+            # Only send notifications when status changes
+            if status_message != previous_status:
+                send_telegram_message(
+                    config['telegram_token'],
+                    config['chat_id'],
+                    status_message
+                )
+                previous_status = status_message
+                
+            sleep_time = config['normal_sleep'] if is_healthy else config['fail_sleep']
+            logging.info(f'{status_message}. Sleeping for {sleep_time} seconds')
+            sleep(sleep_time)
+            
         except Exception as e:
-            logging.info('Exception:')
-            logging.info(e)
-            r = str(e)
-            test_ok = False
-        if test_ok == False:
-            requests.get('https://api.telegram.org/bot{}/sendMessage?chat_id={}&text=Server is down: {}. Sleeping {} seconds'.format(telegram_token, chat_id, str(r), fail_sleep))
-            sleep(fail_sleep)
+            logging.error(f'Main loop error: {e}')
+            sleep(config['fail_sleep'])
 
 
 if __name__ == '__main__':
