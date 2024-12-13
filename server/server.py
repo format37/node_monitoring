@@ -1,5 +1,5 @@
 import requests
-from time import sleep
+from time import sleep, time
 import logging
 import os
 from typing import Tuple
@@ -74,7 +74,8 @@ def main():
         'chat_id': os.environ.get('CHAT_ID', ''),
         'link': os.environ.get('LINK', ''),
         'normal_sleep': int(os.environ.get('NORMAL_SLEEP', 600)),
-        'fail_sleep': int(os.environ.get('FAIL_SLEEP', 3600))
+        'fail_sleep': int(os.environ.get('FAIL_SLEEP', 3600)),
+        'hourly_reminder': int(os.environ.get('HOURLY_REMINDER', 3600))  # 1 hour in seconds
     }
     
     if not all([config['telegram_token'], config['chat_id'], config['link']]):
@@ -89,12 +90,14 @@ def main():
     )
     
     previous_status = None
+    last_reminder_time = 0
     
     while True:
         try:
+            current_time = time()
             is_healthy, status_message = check_validator_status(config['link'])
             
-            # Only send notifications when status changes
+            # Send message if status changes
             if status_message != previous_status:
                 send_telegram_message(
                     config['telegram_token'],
@@ -102,6 +105,16 @@ def main():
                     status_message
                 )
                 previous_status = status_message
+                last_reminder_time = current_time
+            
+            # If not healthy and it's been an hour since last reminder, send status again
+            elif not is_healthy and (current_time - last_reminder_time) >= config['hourly_reminder']:
+                send_telegram_message(
+                    config['telegram_token'],
+                    config['chat_id'],
+                    f"Reminder: {status_message}"
+                )
+                last_reminder_time = current_time
                 
             sleep_time = config['normal_sleep'] if is_healthy else config['fail_sleep']
             logging.info(f'{status_message}. Sleeping for {sleep_time} seconds')
