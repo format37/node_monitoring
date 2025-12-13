@@ -11,10 +11,5 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    environment:
-      - TZ=Europe/Moscow
-      - LINK=https://beaconcha.in/api/v1/validator/YOUR_NODE_ID
-      - BOT_TOKEN=TELEGRAMBOTTOKEN
-      - CHAT_ID=TELEGRAMCHATID
-      - NORMAL_SLEEP=600
-      - FAIL_SLEEP=3600
+    env_file:
+      - .env
