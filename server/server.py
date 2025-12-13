@@ -95,12 +95,12 @@ def check_validator_status(api_key: str, validator_index: int) -> Tuple[bool, st
             return False, f'Validator issues: {", ".join(issues)}'
 
         # Include balance info in healthy message
-        try:
-            balance_wei = int(validator.get("balances", {}).get("current", 0))
-            balance_eth = balance_wei / 1e18
-            return True, f'Validator is healthy and online (Balance: {balance_eth:.4f} ETH)'
-        except (ValueError, TypeError):
-            return True, 'Validator is healthy and online'
+        # try:
+        #     balance_wei = int(validator.get("balances", {}).get("current", 0))
+        #     balance_eth = balance_wei / 1e18
+        #     return True, f'Validator is healthy and online (Balance: {balance_eth:.4f} ETH)'
+        # except (ValueError, TypeError):
+        return True, 'Validator is healthy and online'
 
     except requests.exceptions.Timeout:
         return False, 'API request timed out'
