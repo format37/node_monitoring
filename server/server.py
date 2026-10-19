@@ -1,5 +1,6 @@
 import requests
 from time import sleep, time
+from datetime import datetime, timezone
 import logging
 import os
 from typing import Optional, Tuple
@@ -13,6 +14,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Standard Beacon Node REST spec, so we can swap in any other compliant
 # endpoint by changing this URL.
 API_BASE_URL = "https://ethereum-beacon-api.publicnode.com"
+
+# Mainnet genesis and epoch length, used to turn exit_epoch into a date.
+GENESIS_TIME = 1606824023
+SECONDS_PER_EPOCH = 12 * 32
 
 
 def check_validator_status(
@@ -55,7 +60,6 @@ def check_validator_status(
             issues.append("SLASHED")
 
         problematic_statuses = {
-            'active_exiting': 'Validator is exiting',
             'active_slashed': 'Validator has been slashed',
             'pending_initialized': 'Validator pending initialization',
             'pending_queued': 'Validator queued for activation',
@@ -65,9 +69,11 @@ def check_validator_status(
             'withdrawal_done': 'Validator withdrawal completed',
         }
 
+        # A voluntary exit is expected: the validator must keep attesting
+        # until exit_epoch, so it stays subject to the balance-trend check.
         if status in problematic_statuses:
             issues.append(problematic_statuses[status])
-        elif status != "active_ongoing":
+        elif status not in ("active_ongoing", "active_exiting"):
             issues.append(f"Unknown status: {status}")
 
         # Balance-trend check: a healthy active validator gains gwei every
@@ -90,6 +96,9 @@ def check_validator_status(
         if issues:
             return False, f'Validator issues: {", ".join(issues)}', current_balance
 
+        if status == "active_exiting":
+            return True, f'Validator is exiting{format_exit_eta(validator)}, healthy and online', current_balance
+
         return True, 'Validator is healthy and online', current_balance
 
     except requests.exceptions.Timeout:
@@ -98,6 +107,17 @@ def check_validator_status(
         return False, f'Network error: {str(e)}', None
     except Exception as e:
         return False, f'Unexpected error: {str(e)}', None
+
+
+def format_exit_eta(validator: dict) -> str:
+    try:
+        exit_epoch = int(validator.get("exit_epoch"))
+    except (TypeError, ValueError):
+        return ''
+    exit_time = datetime.fromtimestamp(
+        GENESIS_TIME + exit_epoch * SECONDS_PER_EPOCH, tz=timezone.utc
+    )
+    return f' (exit epoch {exit_epoch}, ~{exit_time:%Y-%m-%d %H:%M} UTC)'
 
 
 def send_telegram_message(token: str, chat_id: str, message: str) -> None:
