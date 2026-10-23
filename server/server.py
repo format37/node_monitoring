@@ -63,11 +63,20 @@ def check_validator_status(
             'active_slashed': 'Validator has been slashed',
             'pending_initialized': 'Validator pending initialization',
             'pending_queued': 'Validator queued for activation',
-            'exited_unslashed': 'Validator has exited',
             'exited_slashed': 'Validator exited due to slashing',
-            'withdrawal_possible': 'Validator withdrawal available',
-            'withdrawal_done': 'Validator withdrawal completed',
         }
+
+        # Stages after a voluntary exit. The validator no longer attests and
+        # the withdrawal sweep drains its balance, so the node may be offline
+        # and the balance-trend check does not apply.
+        voluntary_exit_statuses = {
+            'exited_unslashed': 'Validator has exited, awaiting withdrawal',
+            'withdrawal_possible': 'Validator has exited, withdrawal available',
+            'withdrawal_done': 'Validator has exited, withdrawal completed',
+        }
+
+        if status in voluntary_exit_statuses and not slashed:
+            return True, voluntary_exit_statuses[status], current_balance
 
         # A voluntary exit is expected: the validator must keep attesting
         # until exit_epoch, so it stays subject to the balance-trend check.
